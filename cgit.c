@@ -1005,25 +1005,28 @@ static void cgit_parse_args(int argc, const char **argv)
 
 static int calc_ttl(void)
 {
+	const int ttl_conversion_multiplier = 60;
+	int ttl;
+
 	if (!ctx.repo)
-		return ctx.cfg.cache_root_ttl;
+		ttl = ctx.cfg.cache_root_ttl;
+	else if (!ctx.qry.page)
+		ttl = ctx.cfg.cache_repo_ttl;
+	else if (!strcmp(ctx.qry.page, "about"))
+		ttl = ctx.cfg.cache_about_ttl;
+	else if (!strcmp(ctx.qry.page, "snapshot"))
+		ttl = ctx.cfg.cache_snapshot_ttl;
+	else if (ctx.qry.has_sha1)
+		ttl = ctx.cfg.cache_static_ttl;
+	else if (ctx.qry.has_symref)
+		ttl = ctx.cfg.cache_dynamic_ttl;
+	else
+		ttl = ctx.cfg.cache_repo_ttl;
 
-	if (!ctx.qry.page)
-		return ctx.cfg.cache_repo_ttl;
+	if (ttl >= 0)
+		return ttl.normal * ttl_conversion_multiplier;
 
-	if (!strcmp(ctx.qry.page, "about"))
-		return ctx.cfg.cache_about_ttl;
-
-	if (!strcmp(ctx.qry.page, "snapshot"))
-		return ctx.cfg.cache_snapshot_ttl;
-
-	if (ctx.qry.has_sha1)
-		return ctx.cfg.cache_static_ttl;
-
-	if (ctx.qry.has_symref)
-		return ctx.cfg.cache_dynamic_ttl;
-
-	return ctx.cfg.cache_repo_ttl;
+	return 10 * 365 * 24 * 60 * 60; /* 10 years */
 }
 
 int main(int argc, const char **argv)
@@ -1076,10 +1079,7 @@ int main(int argc, const char **argv)
 	authenticate_cookie();
 
 	ttl = calc_ttl();
-	if (ttl < 0)
-		ctx.page.expires += 10 * 365 * 24 * 60 * 60; /* 10 years */
-	else
-		ctx.page.expires += ttl * 60;
+	ctx.page.expires += ttl;
 	if (!ctx.env.authenticated || (ctx.env.request_method && !strcmp(ctx.env.request_method, "HEAD")))
 		ctx.cfg.nocache = 1;
 	if (ctx.cfg.nocache)

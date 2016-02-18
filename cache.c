@@ -126,7 +126,7 @@ static int is_expired(struct cache_slot *slot)
 	if (slot->ttl < 0)
 		return 0;
 	else
-		return slot->cache_st.st_mtime + slot->ttl * 60 < time(NULL);
+		return slot->cache_st.st_mtime + slot->ttl < time(NULL);
 }
 
 /* Check if the slot has been modified since we opened it.
