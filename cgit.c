@@ -29,6 +29,30 @@ static void add_mimetype(const char *name, const char *value)
 
 static void process_cached_repolist(const char *path);
 
+/**
+ * \brief Convert TTL field into a TTL structure
+ *
+ * \param value Value from field; should be one of the following forms:
+ *                      [normal]
+ *                      [normal]:[forced]
+ * \return Parsed TTL value
+ */
+static struct cgit_ttl ttl_value(const char *value)
+{
+	char *param2;
+	struct cgit_ttl ret;
+
+	ret.normal = atoi(value);
+
+	param2 = strchr(value, ':');
+	if(NULL != param2)
+		ret.forced = atoi(&param2[1]);
+	else
+		ret.forced = -1;
+
+	return ret;
+}
+
 static void repo_config(struct cgit_repo *repo, const char *name, const char *value)
 {
 	struct string_list_item *item;
@@ -187,19 +211,19 @@ static void config_cb(const char *name, const char *value)
 	else if (!strcmp(name, "cache-root"))
 		ctx.cfg.cache_root = xstrdup(expand_macros(value));
 	else if (!strcmp(name, "cache-root-ttl"))
-		ctx.cfg.cache_root_ttl = atoi(value);
+		ctx.cfg.cache_root_ttl = ttl_value(value);
 	else if (!strcmp(name, "cache-repo-ttl"))
-		ctx.cfg.cache_repo_ttl = atoi(value);
+		ctx.cfg.cache_repo_ttl = ttl_value(value);
 	else if (!strcmp(name, "cache-scanrc-ttl"))
 		ctx.cfg.cache_scanrc_ttl = atoi(value);
 	else if (!strcmp(name, "cache-static-ttl"))
-		ctx.cfg.cache_static_ttl = atoi(value);
+		ctx.cfg.cache_static_ttl = ttl_value(value);
 	else if (!strcmp(name, "cache-dynamic-ttl"))
-		ctx.cfg.cache_dynamic_ttl = atoi(value);
+		ctx.cfg.cache_dynamic_ttl = ttl_value(value);
 	else if (!strcmp(name, "cache-about-ttl"))
-		ctx.cfg.cache_about_ttl = atoi(value);
+		ctx.cfg.cache_about_ttl = ttl_value(value);
 	else if (!strcmp(name, "cache-snapshot-ttl"))
-		ctx.cfg.cache_snapshot_ttl = atoi(value);
+		ctx.cfg.cache_snapshot_ttl = ttl_value(value);
 	else if (!strcmp(name, "case-sensitive-sort"))
 		ctx.cfg.case_sensitive_sort = atoi(value);
 	else if (!strcmp(name, "about-filter"))
@@ -352,13 +376,19 @@ static void prepare_context(void)
 	ctx.cfg.cache_size = 0;
 	ctx.cfg.cache_max_create_time = 5;
 	ctx.cfg.cache_root = CGIT_CACHE_ROOT;
-	ctx.cfg.cache_about_ttl = 15;
-	ctx.cfg.cache_snapshot_ttl = 5;
-	ctx.cfg.cache_repo_ttl = 5;
-	ctx.cfg.cache_root_ttl = 5;
+	ctx.cfg.cache_about_ttl.normal = 15;
+	ctx.cfg.cache_about_ttl.forced = -1;
+	ctx.cfg.cache_snapshot_ttl.normal = 5;
+	ctx.cfg.cache_snapshot_ttl.forced = -1;
+	ctx.cfg.cache_repo_ttl.normal = 5;
+	ctx.cfg.cache_repo_ttl.forced = -1;
+	ctx.cfg.cache_root_ttl.normal = 5;
+	ctx.cfg.cache_root_ttl.forced = -1;
 	ctx.cfg.cache_scanrc_ttl = 15;
-	ctx.cfg.cache_dynamic_ttl = 5;
-	ctx.cfg.cache_static_ttl = -1;
+	ctx.cfg.cache_dynamic_ttl.normal = 5;
+	ctx.cfg.cache_dynamic_ttl.forced = -1;
+	ctx.cfg.cache_static_ttl.normal = -1;
+	ctx.cfg.cache_static_ttl.forced = -1;
 	ctx.cfg.case_sensitive_sort = 1;
 	ctx.cfg.branch_sort = 0;
 	ctx.cfg.commit_sort = 0;
@@ -405,6 +435,7 @@ static void prepare_context(void)
 	ctx.env.server_port = getenv("SERVER_PORT");
 	ctx.env.http_cookie = getenv("HTTP_COOKIE");
 	ctx.env.http_referer = getenv("HTTP_REFERER");
+	ctx.env.http_cache_control = getenv("HTTP_CACHE_CONTROL");
 	ctx.env.content_length = getenv("CONTENT_LENGTH") ? strtoul(getenv("CONTENT_LENGTH"), NULL, 10) : 0;
 	ctx.env.authenticated = 0;
 	ctx.page.mimetype = "text/html";
@@ -1006,7 +1037,7 @@ static void cgit_parse_args(int argc, const char **argv)
 static int calc_ttl(void)
 {
 	const int ttl_conversion_multiplier = 60;
-	int ttl;
+	struct cgit_ttl ttl;
 
 	if (!ctx.repo)
 		ttl = ctx.cfg.cache_root_ttl;
@@ -1023,8 +1054,14 @@ static int calc_ttl(void)
 	else
 		ttl = ctx.cfg.cache_repo_ttl;
 
-	if (ttl >= 0)
-		return ttl * ttl_conversion_multiplier;
+	if(ttl.forced >= 0 && NULL != ctx.env.http_cache_control &&
+	    (!strcmp(ctx.env.http_cache_control, "max-age=0") ||
+	     !strcmp(ctx.env.http_cache_control, "no-cache"))
+	  )
+		return ttl.forced * ttl_conversion_multiplier;
+
+	if (ttl.normal >= 0)
+		return ttl.normal * ttl_conversion_multiplier;
 
 	return 10 * 365 * 24 * 60 * 60; /* 10 years */
 }

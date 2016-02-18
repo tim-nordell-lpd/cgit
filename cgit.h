@@ -185,6 +185,11 @@ struct cgit_query {
 	char *vpath;
 };
 
+struct cgit_ttl {
+	int normal;
+	int forced;
+};
+
 struct cgit_config {
 	char *agefile;
 	char *cache_root;
@@ -213,14 +218,14 @@ struct cgit_config {
 	char *virtual_root;	/* Always ends with '/'. */
 	char *strict_export;
 	int cache_size;
-	int cache_dynamic_ttl;
 	int cache_max_create_time;
-	int cache_repo_ttl;
-	int cache_root_ttl;
 	int cache_scanrc_ttl;
-	int cache_static_ttl;
-	int cache_about_ttl;
-	int cache_snapshot_ttl;
+	struct cgit_ttl cache_root_ttl;
+	struct cgit_ttl cache_repo_ttl;
+	struct cgit_ttl cache_about_ttl;
+	struct cgit_ttl cache_static_ttl;
+	struct cgit_ttl cache_dynamic_ttl;
+	struct cgit_ttl cache_snapshot_ttl;
 	int case_sensitive_sort;
 	int embedded;
 	int enable_filter_overrides;
@@ -295,6 +300,7 @@ struct cgit_environment {
 	const char *server_port;
 	const char *http_cookie;
 	const char *http_referer;
+	const char *http_cache_control;
 	unsigned int content_length;
 	int authenticated;
 };
