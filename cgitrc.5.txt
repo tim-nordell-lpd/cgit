@@ -404,6 +404,13 @@ section::
 	after this option will inherit the current section name. Default value:
 	none.
 
+section-filter::
+	Specifies a command which will be invoked to format section headings.
+	The command will get the section on its STDIN, and the STDOUT from the
+	command will be included verbatim as the section heading.
+	Default value: none.
+	See also: "FILTER API".
+
 section-sort::
 	Flag which, when set to "1", will sort the sections on the repository
 	listing by name. Set this flag to "0" if the order in the cgitrc file should
@@ -694,6 +701,11 @@ owner filter::
 	This filter is given no arguments.  The owner text is avilable on
 	standard input and the filter is expected to write to standard
 	output.  The output is included in the Owner column.
+
+section filter::
+	This filter is given no arguments.  The section text is avilable on
+	standard input and the filter is expected to write to standard
+	output.  The output is included in the section heading.
 
 source filter::
 	This filter is given a single parameter: the filename of the source

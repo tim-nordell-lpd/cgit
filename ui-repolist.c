@@ -322,7 +322,11 @@ void cgit_print_repolist(void)
 		     strcmp(section, last_section)))) {
 			htmlf("<tr class='nohover'><td colspan='%d' class='reposection'>",
 			      columns);
+			if (ctx.cfg.section_filter)
+				cgit_open_filter(ctx.cfg.section_filter);
 			html_txt(section);
+			if (ctx.cfg.section_filter)
+				cgit_close_filter(ctx.cfg.section_filter);
 			html("</td></tr>");
 			last_section = section;
 		}

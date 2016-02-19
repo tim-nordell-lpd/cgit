@@ -234,6 +234,8 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.email_filter = cgit_new_filter(value, EMAIL);
 	else if (!strcmp(name, "owner-filter"))
 		ctx.cfg.owner_filter = cgit_new_filter(value, OWNER);
+	else if (!strcmp(name, "section-filter"))
+		ctx.cfg.section_filter = cgit_new_filter(value, SECTION);
 	else if (!strcmp(name, "auth-filter"))
 		ctx.cfg.auth_filter = cgit_new_filter(value, AUTH);
 	else if (!strcmp(name, "embedded"))

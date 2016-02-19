@@ -436,6 +436,7 @@ struct cgit_filter *cgit_new_filter(const char *cmd, filter_type filtertype)
 			argument_count = 1;
 			break;
 
+		case SECTION:
 		case COMMIT:
 		default:
 			argument_count = 0;

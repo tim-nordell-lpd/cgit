@@ -55,7 +55,7 @@ typedef enum {
 } diff_type;
 
 typedef enum {
-	ABOUT, COMMIT, SOURCE, EMAIL, AUTH, OWNER
+	ABOUT, COMMIT, SOURCE, EMAIL, AUTH, OWNER, SECTION
 } filter_type;
 
 struct cgit_filter {
@@ -272,6 +272,7 @@ struct cgit_config {
 	struct cgit_filter *source_filter;
 	struct cgit_filter *email_filter;
 	struct cgit_filter *owner_filter;
+	struct cgit_filter *section_filter;
 	struct cgit_filter *auth_filter;
 };
 
