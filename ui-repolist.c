@@ -269,13 +269,135 @@ static int sort_repolist(char *field)
 	return 0;
 }
 
+struct repolist_ctx
+{
+	/* From outer contex passed to interior */
+	int columns;
+	int sorted;
+
+	/* Used in interior context; should be reset in repolist_walk_visible() */
+	int hits;
+	const char *last_section;
+};
+
+static void html_section(struct cgit_repo *repo, int columns)
+{
+	htmlf("<tr class='nohover'><td colspan='%d' class='reposection'>",
+		columns);
+	if (ctx.cfg.section_filter)
+		cgit_open_filter(ctx.cfg.section_filter);
+	html_txt(repo->section);
+	if (ctx.cfg.section_filter)
+		cgit_close_filter(ctx.cfg.section_filter);
+	html("</td></tr>");
+}
+
+static void html_repository(struct cgit_repo *repo, int sorted)
+{
+	bool is_toplevel;
+
+	ctx.repo = repo;
+
+	is_toplevel = (!sorted && NULL != repo->section && repo->section[0] != '\0');
+	htmlf("<tr><td class='%s'>", is_toplevel ? "sublevel-repo" : "toplevel-repo");
+	cgit_summary_link(repo->name, repo->name, NULL, NULL);
+	html("</td><td>");
+	html_link_open(cgit_repourl(repo->url), NULL, NULL);
+	html_ntxt(ctx.cfg.max_repodesc_len, repo->desc);
+	html_link_close();
+	html("</td><td>");
+	if (ctx.cfg.enable_index_owner) {
+		if (repo->owner_filter) {
+			cgit_open_filter(repo->owner_filter);
+			html_txt(repo->owner);
+			cgit_close_filter(repo->owner_filter);
+		} else {
+			html("<a href='");
+			html_attr(cgit_currenturl());
+			html("?q=");
+			html_url_arg(repo->owner);
+			html("'>");
+			html_txt(repo->owner);
+			html("</a>");
+		}
+		html("</td><td>");
+	}
+	print_modtime(repo);
+	html("</td>");
+	if (ctx.cfg.enable_index_links) {
+		html("<td>");
+		cgit_summary_link("summary", NULL, "button", NULL);
+		cgit_log_link("log", NULL, "button", NULL, NULL, NULL,
+				0, NULL, NULL, ctx.qry.showmsg, 0);
+		cgit_tree_link("tree", NULL, "button", NULL, NULL, NULL);
+		html("</td>");
+	}
+	html("</tr>\n");
+}
+
+static inline bool should_emit_section(struct cgit_repo *repo, struct repolist_ctx *c)
+{
+	/* If we're sorted, we will not have a new section emitted. */
+	if (c->sorted)
+		return false;
+
+	/* We need a valid repo section for the rest of the checks */
+	if(NULL == repo->section)
+		return false;
+
+	/* If the section title is blank (e.g. top-level), we never emit
+	 * a section heading. */
+	if('\0' == repo->section[0])
+		return false;
+
+	/* Finally, compare the last section name to the current.  If they're
+	 * the same, do not emit a section area. */
+	if(NULL != c->last_section && !strcmp(repo->section, c->last_section))
+		return false;
+
+	c->last_section = repo->section;
+	return true;
+}
+
+static int generate_repolist(struct cgit_repo *repo, struct repolist_ctx *c)
+{
+	c->hits++;
+	if (c->hits <= ctx.qry.ofs)
+		return 0;
+	if (c->hits > ctx.qry.ofs + ctx.cfg.max_repo_count)
+		return 0;
+
+	if(should_emit_section(repo, c))
+		html_section(repo, c->columns);
+	html_repository(repo, c->sorted);
+
+	return 0;
+}
+
+typedef int (*repolist_walk_callback_t)(struct cgit_repo *repo, struct repolist_ctx *c);
+static int repolist_walk_visible(repolist_walk_callback_t callback, struct repolist_ctx *c)
+{
+	struct cgit_repo *repo;
+	int i;
+
+	c->hits = 0;
+	c->last_section = NULL;
+
+	for (i = 0; i < cgit_repolist.count; i++) {
+		repo = &cgit_repolist.repos[i];
+		if (!is_visible(repo))
+			continue;
+		if(NULL != callback)
+			callback(repo, c);
+	}
+	return 0;
+}
 
 void cgit_print_repolist(void)
 {
-	int i, columns = 3, hits = 0, header = 0;
-	char *last_section = NULL;
-	char *section;
-	int sorted = 0;
+	struct repolist_ctx repolist_ctx = {0};
+
+	repolist_ctx.columns = 3;
 
 	if (!any_repos_visible()) {
 		cgit_print_error_page(404, "Not found", "No repositories found");
@@ -283,9 +405,9 @@ void cgit_print_repolist(void)
 	}
 
 	if (ctx.cfg.enable_index_links)
-		++columns;
+		++repolist_ctx.columns;
 	if (ctx.cfg.enable_index_owner)
-		++columns;
+		++repolist_ctx.columns;
 
 	ctx.page.title = ctx.cfg.root_title;
 	cgit_print_http_headers();
@@ -296,79 +418,19 @@ void cgit_print_repolist(void)
 		html_include(ctx.cfg.index_header);
 
 	if (ctx.qry.sort)
-		sorted = sort_repolist(ctx.qry.sort);
+		repolist_ctx.sorted = sort_repolist(ctx.qry.sort);
 	else if (ctx.cfg.section_sort)
 		sort_repolist("section");
 
 	html("<table summary='repository list' class='list nowrap'>");
-	for (i = 0; i < cgit_repolist.count; i++) {
-		ctx.repo = &cgit_repolist.repos[i];
-		if (!is_visible(ctx.repo))
-			continue;
-		hits++;
-		if (hits <= ctx.qry.ofs)
-			continue;
-		if (hits > ctx.qry.ofs + ctx.cfg.max_repo_count)
-			continue;
-		if (!header++)
-			print_header();
-		section = ctx.repo->section;
-		if (section && !strcmp(section, ""))
-			section = NULL;
-		if (!sorted &&
-		    ((last_section == NULL && section != NULL) ||
-		    (last_section != NULL && section == NULL) ||
-		    (last_section != NULL && section != NULL &&
-		     strcmp(section, last_section)))) {
-			htmlf("<tr class='nohover'><td colspan='%d' class='reposection'>",
-			      columns);
-			if (ctx.cfg.section_filter)
-				cgit_open_filter(ctx.cfg.section_filter);
-			html_txt(section);
-			if (ctx.cfg.section_filter)
-				cgit_close_filter(ctx.cfg.section_filter);
-			html("</td></tr>");
-			last_section = section;
-		}
-		htmlf("<tr><td class='%s'>",
-		      !sorted && section ? "sublevel-repo" : "toplevel-repo");
-		cgit_summary_link(ctx.repo->name, ctx.repo->name, NULL, NULL);
-		html("</td><td>");
-		html_link_open(cgit_repourl(ctx.repo->url), NULL, NULL);
-		html_ntxt(ctx.cfg.max_repodesc_len, ctx.repo->desc);
-		html_link_close();
-		html("</td><td>");
-		if (ctx.cfg.enable_index_owner) {
-			if (ctx.repo->owner_filter) {
-				cgit_open_filter(ctx.repo->owner_filter);
-				html_txt(ctx.repo->owner);
-				cgit_close_filter(ctx.repo->owner_filter);
-			} else {
-				html("<a href='");
-				html_attr(cgit_currenturl());
-				html("?q=");
-				html_url_arg(ctx.repo->owner);
-				html("'>");
-				html_txt(ctx.repo->owner);
-				html("</a>");
-			}
-			html("</td><td>");
-		}
-		print_modtime(ctx.repo);
-		html("</td>");
-		if (ctx.cfg.enable_index_links) {
-			html("<td>");
-			cgit_summary_link("summary", NULL, "button", NULL);
-			cgit_log_link("log", NULL, "button", NULL, NULL, NULL,
-				      0, NULL, NULL, ctx.qry.showmsg, 0);
-			cgit_tree_link("tree", NULL, "button", NULL, NULL, NULL);
-			html("</td>");
-		}
-		html("</tr>\n");
-	}
+	print_header();
+
+	/* Count visible repositories */
+	repolist_walk_visible(generate_repolist, &repolist_ctx);
+
 	html("</table>");
-	if (hits > ctx.cfg.max_repo_count)
-		print_pager(hits, ctx.cfg.max_repo_count, ctx.qry.search, ctx.qry.sort);
+	if (repolist_ctx.hits > ctx.cfg.max_repo_count)
+		print_pager(repolist_ctx.hits, ctx.cfg.max_repo_count, ctx.qry.search, ctx.qry.sort);
 	cgit_print_docend();
 }
 
