@@ -278,6 +278,8 @@ struct repolist_ctx
 	/* Used in interior context; should be reset in repolist_walk_visible() */
 	int hits;
 	const char *last_section;
+	int section_cnt;
+	int section_nested_cnt;
 };
 
 static void html_section(struct cgit_repo *repo, int columns)
@@ -374,6 +376,57 @@ static int generate_repolist(struct cgit_repo *repo, struct repolist_ctx *c)
 	return 0;
 }
 
+static int generate_sectionlist(struct cgit_repo *repo, struct repolist_ctx *c)
+{
+	bool is_toplevel;
+
+	is_toplevel = (NULL == repo->section || repo->section[0] == '\0');
+
+	if(!should_emit_section(repo, c) && !is_toplevel)
+		return 0;
+
+	c->hits++;
+
+	if (c->hits <= ctx.qry.ofs)
+		return 0;
+	if (c->hits > ctx.qry.ofs + ctx.cfg.max_repo_count)
+		return 0;
+
+	if(is_toplevel)
+		html_repository(repo, c->sorted);
+	else
+		html_section(repo, c->columns);
+
+	return 0;
+}
+
+static int count_sections(struct cgit_repo *repo, struct repolist_ctx *c)
+{
+	const char *last_section;
+
+	last_section = c->last_section;
+	if(should_emit_section(repo, c))
+	{
+		c->section_cnt++;
+
+		/* Determine if one section is nested within the other.  This
+		 * is only accurate if this is a sorted list.
+		 */
+		if(NULL != last_section && NULL != repo->section)
+		{
+			int spn = strspn(last_section, repo->section);
+			if(last_section[spn] == '\0')
+			{
+				c->section_nested_cnt++;
+			}
+		}
+	}
+
+	c->hits++;
+
+	return 0;
+}
+
 typedef int (*repolist_walk_callback_t)(struct cgit_repo *repo, struct repolist_ctx *c);
 static int repolist_walk_visible(repolist_walk_callback_t callback, struct repolist_ctx *c)
 {
@@ -382,6 +435,8 @@ static int repolist_walk_visible(repolist_walk_callback_t callback, struct repol
 
 	c->hits = 0;
 	c->last_section = NULL;
+	c->section_cnt = 0;
+	c->section_nested_cnt = 0;
 
 	for (i = 0; i < cgit_repolist.count; i++) {
 		repo = &cgit_repolist.repos[i];
@@ -395,6 +450,7 @@ static int repolist_walk_visible(repolist_walk_callback_t callback, struct repol
 
 void cgit_print_repolist(void)
 {
+	bool section_pages = false;
 	struct repolist_ctx repolist_ctx = {0};
 
 	repolist_ctx.columns = 3;
@@ -420,13 +476,24 @@ void cgit_print_repolist(void)
 	if (ctx.qry.sort)
 		repolist_ctx.sorted = sort_repolist(ctx.qry.sort);
 	else if (ctx.cfg.section_sort)
+	{
 		sort_repolist("section");
+		section_pages = (2 == ctx.cfg.section_sort);
+	}
 
 	html("<table summary='repository list' class='list nowrap'>");
 	print_header();
 
-	/* Count visible repositories */
-	repolist_walk_visible(generate_repolist, &repolist_ctx);
+	if(section_pages)
+		repolist_walk_visible(count_sections, &repolist_ctx);
+
+	if(section_pages && repolist_ctx.hits > ctx.cfg.max_repo_count &&
+		repolist_ctx.section_cnt - repolist_ctx.section_nested_cnt > 1)
+	{
+		repolist_walk_visible(generate_sectionlist, &repolist_ctx);
+	} else {
+		repolist_walk_visible(generate_repolist, &repolist_ctx);
+	}
 
 	html("</table>");
 	if (repolist_ctx.hits > ctx.cfg.max_repo_count)

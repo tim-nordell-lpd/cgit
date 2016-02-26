@@ -413,9 +413,14 @@ section-filter::
 
 section-sort::
 	Flag which, when set to "1", will sort the sections on the repository
-	listing by name. Set this flag to "0" if the order in the cgitrc file should
-	be preserved. Default value: "1". See also: section,
-	case-sensitive-sort, repository-sort.
+	listing by name. When set to "2", this will collapse the listing of
+	repositories (when over the size max-repo-count) into just the list
+	of sections. This is only really useful if section filters are also
+	enabled, if the filter makes links into the URL that the section
+	comprises, and if all section headings are paths. Set this flag to
+	"0" if the order in the cgitrc file should be preserved.
+	Default value: "1". See also: section, case-sensitive-sort,
+	repository-sort, section-filter
 
 section-from-path::
 	A number which, if defined prior to scan-path, specifies how many
