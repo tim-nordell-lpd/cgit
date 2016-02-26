@@ -243,6 +243,7 @@ struct cgit_config {
 	int enable_git_config;
 	int local_time;
 	int max_atom_items;
+	int max_diff_files;
 	int max_repo_count;
 	int max_commit_count;
 	int max_lock_attempts;

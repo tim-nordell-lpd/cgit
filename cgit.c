@@ -248,6 +248,12 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.max_blob_size = atoi(value);
 	else if (!strcmp(name, "max-repo-count"))
 		ctx.cfg.max_repo_count = atoi(value);
+	else if (!strcmp(name, "max-diff-files"))
+	{
+		ctx.cfg.max_diff_files = atoi(value);
+		if(ctx.cfg.max_diff_files < 1)
+			ctx.cfg.max_diff_files = INT_MAX;
+	}
 	else if (!strcmp(name, "max-commit-count"))
 		ctx.cfg.max_commit_count = atoi(value);
 	else if (!strcmp(name, "project-list"))
@@ -401,6 +407,7 @@ static void prepare_context(void)
 	ctx.cfg.enable_tree_linenumbers = 1;
 	ctx.cfg.enable_git_config = 0;
 	ctx.cfg.max_repo_count = 50;
+	ctx.cfg.max_diff_files = INT_MAX;
 	ctx.cfg.max_commit_count = 50;
 	ctx.cfg.max_lock_attempts = 5;
 	ctx.cfg.max_msg_len = 80;

@@ -420,6 +420,14 @@ side-by-side-diffs::
 	If set to "1" shows side-by-side diffs instead of unidiffs per
 	default. Default value: "0".
 
+max-diff-files::
+	This value controls the maximum number of files presented in a diff
+	view to help control the size of HTML files presented in a web browser.
+	(In a very large commit, a client web browser may choke on a large
+	commit, such as the first commit in the Linux kernel repository.)
+	A value of "0" turns this feature off.
+	Default value: "0".
+
 snapshots::
 	Text which specifies the default set of snapshot formats that cgit
 	generates links for. The value is a space-separated list of zero or

@@ -18,6 +18,7 @@ unsigned char new_rev_sha1[20];
 static int files, slots;
 static int total_adds, total_rems, max_changes;
 static int lines_added, lines_removed;
+static int filepair_cnt;
 
 static struct fileinfo {
 	char status;
@@ -206,8 +207,18 @@ static void cgit_print_diffstat(const unsigned char *old_sha1,
 	max_changes = 0;
 	cgit_diff_tree(old_sha1, new_sha1, inspect_filepair, prefix,
 		       ctx.qry.ignorews);
-	for (i = 0; i<files; i++)
+	for (i = 0; i<files && i < ctx.cfg.max_diff_files; i++)
 		print_fileinfo(&items[i]);
+	/* If needed, add a row indicating that we didn't display everything */
+	if(i < files)
+	{
+		html("<tr>");
+		html("<td class='mode'>...</td>");
+		html("<td class='upd'>...</td>");
+		html("<td class='right'>...</td>");
+		html("<td class='graph'>...</td>");
+		html("</tr>");
+	}
 	html("</table>");
 	html("<div class='diffstat-summary'>");
 	htmlf("%d files changed, %d insertions, %d deletions",
@@ -301,6 +312,11 @@ static void filepair_cb(struct diff_filepair *pair)
 
 	if (!show_filepair(pair))
 		return;
+
+	if(filepair_cnt++ >= ctx.cfg.max_diff_files)
+	{
+		return;
+	}
 
 	current_filepair = pair;
 	if (use_ssdiff) {
@@ -490,6 +506,7 @@ void cgit_print_diff(const char *new_rev, const char *old_rev,
 		html("<table summary='diff' class='diff'>");
 		html("<tr><td>");
 	}
+        filepair_cnt = 0;
 	cgit_diff_tree(old_rev_sha1, new_rev_sha1, filepair_cb, prefix,
 		       ctx.qry.ignorews);
 	if (!use_ssdiff)
